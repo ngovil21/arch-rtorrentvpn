@@ -69,6 +69,13 @@ else
 				# mark as reload required due to mismatch
 				reload="true"
 
+			elif  ! pgrep -f /usr/bin/rtorrent > /dev/null; then
+
+                    echo "[info] rTorrent is not running!"
+
+                    # reload to restart rtorrent
+                    reload="true"
+
 			else
 
 				if [[ "${DEBUG}" == "true" ]]; then
