@@ -40,6 +40,10 @@ sed -i -e "s~\$updateInterval \= 60\;~\$updateInterval \= 10\;~g" "/usr/share/we
 # set the rutorrent diskspace plugin to point at the /data volume mapping, default is /
 sed -i -e "s~\$partitionDirectory \= \&\$topDirectory\;~\$partitionDirectory \= \"/data\";~g" "/usr/share/webapps/rutorrent/plugins/diskspace/conf.php"
 
+echo "Installing autodl-irssi"
+source /root/autodl-irssi.sh
+
+
 # cleanup
 yes|pacman -Scc
 rm -rf /usr/share/locale/*
