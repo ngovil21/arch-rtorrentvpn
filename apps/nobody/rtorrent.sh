@@ -47,8 +47,8 @@ else
 	reload="false"
 
 	# set empty values for port and ip
-	rtorrent_port=""
-	rtorrent_ip=""
+	rtorrent_port="6890"
+	rtorrent_ip="0.0.0.0"
 
 	# set sleep period for recheck (in mins)
 	sleep_period="10"
@@ -61,6 +61,16 @@ else
 
 		if [[ $first_run == "false" ]]; then
 
+			# check rtorrent is running, if not force reload to start
+			if ! pgrep -f /usr/bin/rtorrent > /dev/null; then
+
+				echo "[info] rTorrent is not running"
+
+				# mark as reload required due to rtorrent not running
+				reload="true"
+
+			fi
+
 			# if current bind interface ip is different to tunnel local ip then re-configure rtorrent
 			if [[ $rtorrent_ip != "$vpn_ip" ]]; then
 
@@ -68,24 +78,6 @@ else
 
 				# mark as reload required due to mismatch
 				reload="true"
-
-			# check if rtorrent is not running, possible crash? then trigger reload
-			elif  ! pgrep -f /usr/bin/rtorrent > /dev/null; then
-
-                    echo "[info] rTorrent is not running!"
-
-                    # reload to restart rtorrent
-                    reload="true"
-
-			else
-
-				if [[ "${DEBUG}" == "true" ]]; then
-
-					echo "[debug] VPN listening interface is $vpn_ip"
-					echo "[debug] rTorrent listening interface is $rtorrent_ip"
-					echo "[debug] rTorrent listening interface OK"
-
-				fi
 
 			fi
 
@@ -108,7 +100,10 @@ else
 				# if vpn port is not an integer then log warning
 				if [[ ! $vpn_port =~ ^-?[0-9]+$ ]]; then
 
-					echo "[warn] VPN incoming port is not an integer, downloads will be slow, does VPN remote gateway supports port forwarding?"
+					echo "[warn] PIA incoming port is not an integer, downloads will be slow, does PIA remote gateway supports port forwarding?"
+
+					# set vpn port to current rtorrent port, as we currently cannot detect incoming port (line saturated, or issues with pia)
+					vpn_port="${rtorrent_port}"
 
 				elif [[ $rtorrent_port != "$vpn_port" ]]; then
 
@@ -127,16 +122,6 @@ else
 					# mark as reload required due to mismatch
 					reload="true"
 
-				else
-
-					if [[ "${DEBUG}" == "true" ]]; then
-
-						echo "[debug] VPN incoming port is $vpn_port"
-						echo "[debug] rTorrent incoming port is $rtorrent_port"
-						echo "[debug] rTorrent incoming port OK"
-
-					fi
-
 				fi
 
 			else
@@ -145,7 +130,6 @@ else
 				if [[ ! $vpn_port =~ ^-?[0-9]+$ ]]; then
 
 					echo "[warn] PIA incoming port is not an integer, downloads will be slow, does PIA remote gateway supports port forwarding?"
-					vpn_port="6890"
 
 				else
 
@@ -178,22 +162,39 @@ else
 
 			if [[ $VPN_PROV == "pia" ]]; then
 
+				# run tmux attached to rTorrent, specifying listening interface and port (port is pia only)
+				/usr/bin/script /home/nobody/typescript --command "/usr/bin/tmux new-session -d -s rt -n rtorrent /usr/bin/rtorrent -b ${vpn_ip} -p ${vpn_port}-${vpn_port}"
+
+				# set rtorrent ip and port to current vpn ip and port (used when checking for changes on next run)
 				rtorrent_ip="${vpn_ip}"
 				rtorrent_port="${vpn_port}"
-				
-				# run tmux attached to rTorrent, specifying listening interface and port (port is pia only)
-				/usr/bin/script /home/nobody/typescript --command "/usr/bin/tmux new-session -d -s rt -n rtorrent /usr/bin/rtorrent -b ${rtorrent_ip} -p ${rtorrent_port}-${rtorrent_port}"
 
 			else
 
-				rtorrent_ip="${vpn_ip}"
-
 				# run rTorrent, specifying listening interface
-				/usr/bin/script /home/nobody/typescript --command "/usr/bin/tmux new-session -d -s rt -n rtorrent /usr/bin/rtorrent -b ${rtorrent_ip}"
+				/usr/bin/script /home/nobody/typescript --command "/usr/bin/tmux new-session -d -s rt -n rtorrent /usr/bin/rtorrent -b ${vpn_ip}"
+
+				# set rtorrent ip to current vpn ip (used when checking for changes on next run)
+				rtorrent_ip="${vpn_ip}"
 
 			fi
 
 		fi
+
+		if [[ "${DEBUG}" == "true" ]]; then
+
+			echo "[debug] VPN incoming port is $vpn_port"
+			echo "[debug] rTorrent incoming port is $rtorrent_port"
+
+			echo "[debug] VPN IP is $vpn_ip"
+			echo "[debug] rTorrent IP is $rtorrent_ip"
+
+		fi
+
+		# wait for rtorrent process to start (listen for port)
+		while [[ $(netstat -lnt | awk '$6 == "LISTEN" && $4 ~ ".5000"') == "" ]]; do
+			sleep 0.1
+		done
 
 		# run php plugins for rutorent (required for scheduler and rss feed plugins)
 		/usr/bin/php /usr/share/webapps/rutorrent/php/initplugins.php admin
