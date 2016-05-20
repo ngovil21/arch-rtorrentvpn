@@ -67,11 +67,32 @@ else
 
 fi
 
-# force overwrite for now, changed from socket to tcp/ip for php-fpm - remove later
-cp -f /home/nobody/nginx/config/* /config/nginx/config/
-
 # create soft link to nginx config file
 ln -fs /config/nginx/config/nginx.conf /etc/nginx/nginx.conf
+
+# if conf folder exists in container then rename
+if [[ -d "/etc/webapps/rutorrent/conf" && ! -L "/etc/webapps/rutorrent/conf" ]]; then
+	mv /etc/webapps/rutorrent/conf /etc/webapps/rutorrent/conf-backup 2>/dev/null || true
+fi
+
+# if rutorrent conf folder doesnt exist then copy default to host config volume (soft linked)
+if [ ! -d "/config/rutorrent/conf" ]; then
+
+	echo "[info] rutorrent conf folder doesnt exist, copying default to /config/rutorrent/conf/..."
+
+	mkdir -p /config/rutorrent/conf
+	if [[ -d "/etc/webapps/rutorrent/conf-backup" && ! -L "/etc/webapps/rutorrent/conf-backup" ]]; then
+		cp -R /etc/webapps/rutorrent/conf-backup/* /config/rutorrent/conf/ 2>/dev/null || true
+	fi
+
+else
+
+	echo "[info] rutorrent conf folder already exists, skipping copy"
+
+fi
+
+# create soft link to rutorrent conf folder
+ln -fs /config/rutorrent/conf /etc/webapps/rutorrent
 
 # if share folder exists in container then rename
 if [[ -d "/usr/share/webapps/rutorrent/share" && ! -L "/usr/share/webapps/rutorrent/share" ]]; then
